@@ -21,6 +21,8 @@ namespace GameCore.PlayerSystem
         public event Action OnTalkPressed; // 右クリック
         public event Action OnToolPressed; // 左クリック
         public event Action OnInteractPressed; // Fキー
+        public event Action OnPreviousHotbarSlot; // Qキー
+        public event Action OnNextHotbarSlot;     // Eキー
 
         private void Update()
         {
@@ -44,6 +46,12 @@ namespace GameCore.PlayerSystem
             if (Mouse.current.rightButton.wasPressedThisFrame) OnTalkPressed?.Invoke();
             if (Mouse.current.leftButton.wasPressedThisFrame) OnToolPressed?.Invoke();
             if (Keyboard.current.fKey.wasPressedThisFrame) OnInteractPressed?.Invoke();
+
+            // ホットバー切り替え (Q / E)
+            if (Keyboard.current.qKey.wasPressedThisFrame) OnPreviousHotbarSlot?.Invoke();
+            if (Keyboard.current.eKey.wasPressedThisFrame) OnNextHotbarSlot?.Invoke();
+
+
         }
     }
 }

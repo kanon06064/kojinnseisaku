@@ -1,73 +1,89 @@
-﻿using UnityEngine;
+﻿using System.Collections; // これが必要です
+using UnityEngine;
+using UnityEngine.UI;
 using GameCore.InventorySystem;
 
 namespace GameCore.UISystem
 {
-    /// <summary>
-    /// InventoryManager（データ）の変更を監視し、該当するUIスロットを更新するクラス。
-    /// ホットバーと全体メニューの両方で「使い回せる」ように設計しています。
-    /// </summary>
     public class InventoryView : MonoBehaviour
     {
         [Header("System References")]
-        [SerializeField] private InventoryManager inventoryManager; [Header("UI Settings")]
-        [Tooltip("このViewが管理するUIスロットの配列（Inspectorで割り当てる）")]
-        [SerializeField] private InventorySlotUI[] slotUIs; [Tooltip("InventoryManagerの何番目のスロットから監視を開始するか")]
+        [SerializeField] private InventoryManager inventoryManager;
+
+        [Header("UI Settings")]
+        [SerializeField] private InventorySlotUI[] slotUIs;
         [SerializeField] private int startIndex = 0;
 
-        private void Start()
+        [Header("Selection (Hotbar Only)")]
+        [SerializeField] private bool isHotbar = false;
+        [SerializeField] private RectTransform selectionFrame;
+
+        public int SelectedIndex { get; private set; } = 0;
+
+        // ★修正ポイント: IEnumeratorに変更して待機処理を追加
+        private IEnumerator Start()
         {
             if (inventoryManager != null)
             {
-                // データが更新されたら、HandleSlotUpdatedを呼ぶように登録
                 inventoryManager.OnSlotUpdated += HandleSlotUpdated;
-
-                // ゲーム開始時に、現在のデータでUIをすべて更新する
                 RefreshAllSlots();
+            }
+
+            // レイアウト整列が終わるまで1フレーム待つ
+            yield return null;
+
+            if (isHotbar && selectionFrame != null)
+            {
+                SelectSlot(0);
             }
         }
 
         private void OnDestroy()
         {
-            // エラー防止のための登録解除
             if (inventoryManager != null)
             {
                 inventoryManager.OnSlotUpdated -= HandleSlotUpdated;
             }
         }
 
-        /// <summary>
-        /// InventoryManagerのどこかのマスが変化した時に呼ばれる
-        /// </summary>
-        /// <param name="dataIndex">変化したマスの番号(0〜39)</param>
-        /// <param name="slotData">変化後の最新データ</param>
         private void HandleSlotUpdated(int dataIndex, InventorySlot slotData)
         {
-            // 通知された番号が、このViewが担当している範囲内かチェックする
             if (dataIndex >= startIndex && dataIndex < startIndex + slotUIs.Length)
             {
-                // データの番号(dataIndex)を、UI配列の番号(uiIndex)に変換する
                 int uiIndex = dataIndex - startIndex;
-
-                // 該当するUIマスの見た目を更新！
                 slotUIs[uiIndex].UpdateUI(slotData);
             }
         }
 
-        /// <summary>
-        /// 全てのスロットの見た目を強制的に最新状態にする
-        /// </summary>
         private void RefreshAllSlots()
         {
             for (int i = 0; i < slotUIs.Length; i++)
             {
                 int dataIndex = startIndex + i;
-                // ★追加: スロットUIに自分の番号を教える
-                slotUIs[i].Initialize(dataIndex);
+                if (dataIndex < slotUIs.Length) // 安全策
+                    slotUIs[i].Initialize(dataIndex);
 
                 InventorySlot data = inventoryManager.GetSlot(dataIndex);
                 slotUIs[i].UpdateUI(data);
             }
+        }
+
+        public void SelectSlot(int index)
+        {
+            if (!isHotbar) return;
+
+            SelectedIndex = Mathf.Clamp(index, 0, slotUIs.Length - 1);
+
+            if (selectionFrame != null && slotUIs.Length > SelectedIndex)
+            {
+                selectionFrame.gameObject.SetActive(true);
+                selectionFrame.position = slotUIs[SelectedIndex].transform.position;
+            }
+        }
+
+        public int GetSelectedDataIndex()
+        {
+            return startIndex + SelectedIndex;
         }
     }
 }
