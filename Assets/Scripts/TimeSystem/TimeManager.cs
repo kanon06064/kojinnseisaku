@@ -113,5 +113,35 @@ namespace GameCore.TimeSystem
 
             Debug.Log($"季節が変わりました！ 現在は {currentSeason} です。");
         }
+
+        // --- デバッグ用機能 ---
+
+        /// <summary>
+        /// デバッグ: 強制的に1日進める
+        /// </summary>
+        public void DebugSkipDay()
+        {
+            AdvanceDay();
+            Debug.Log($"<color=yellow>[Debug]</color> 1日スキップしました: {currentDay}日目");
+        }
+
+        /// <summary>
+        /// デバッグ: 強制的に1時間進める
+        /// </summary>
+        public void DebugSkipHour()
+        {
+            AdvanceHour();
+            Debug.Log($"<color=yellow>[Debug]</color> 1時間スキップしました: {currentHour}時");
+        }
+
+        /// <summary>
+        /// デバッグ: 時間の進行速度を変える
+        /// </summary>
+        public void DebugSetTimeScale(float scale)
+        {
+            Time.timeScale = scale;
+            Debug.Log($"<color=yellow>[Debug]</color> 時間速度を変更: x{scale}");
+        }
+
     }
 }

@@ -5,6 +5,10 @@ using GameCore.PartySystem;
 
 namespace GameCore.UISystem
 {
+    /// <summary>
+    /// パーティ編成画面のマネージャー。
+    /// BootSceneにあるPartyManagerを自動取得します。
+    /// </summary>
     public class PartyScreenUI : MonoBehaviour
     {
         [Header("System")]
@@ -24,6 +28,12 @@ namespace GameCore.UISystem
 
         private void Start()
         {
+            // --- ★修正: マネージャーの自動取得 ---
+            if (partyManager == null)
+            {
+                partyManager = FindAnyObjectByType<PartyManager>();
+            }
+
             if (partyManager != null)
             {
                 partyManager.OnPartyUpdated += RefreshUI;
@@ -52,14 +62,12 @@ namespace GameCore.UISystem
 
         private void UpdateList(Transform parent, List<MonsterData> dataList, List<MonsterSlotUI> uiList)
         {
-            // 一旦クリア
             foreach (Transform child in parent)
             {
                 Destroy(child.gameObject);
             }
             uiList.Clear();
 
-            // 生成
             foreach (var monster in dataList)
             {
                 GameObject obj = Instantiate(monsterSlotPrefab, parent);
@@ -77,8 +85,11 @@ namespace GameCore.UISystem
             textUI.color = current > max ? Color.red : Color.white;
         }
 
+        // --- モンスター移動処理 ---
         public bool TryMoveMonster(MonsterData monster, PartyZoneType targetZone)
         {
+            if (partyManager == null) return false;
+
             List<MonsterData> targetList = null;
             List<MonsterData> currentList = null;
 
@@ -88,33 +99,32 @@ namespace GameCore.UISystem
             if (partyManager.MainParty.Contains(monster)) currentList = partyManager.MainParty;
             else if (partyManager.SubParty.Contains(monster)) currentList = partyManager.SubParty;
 
-            if (targetList == null || currentList == null) return false; // 失敗
+            if (targetList == null || currentList == null) return false;
 
-            // ケースA: 同じリスト内（並び替え）
+            // 同じリスト内（並び替え）
             if (targetList == currentList)
             {
                 currentList.Remove(monster);
                 currentList.Add(monster);
                 RefreshUI();
-                return true; // 成功
+                return true;
             }
 
-            // ケースB: 違うリストへ移動
+            // 違うリストへ移動
             int currentCost = partyManager.GetTotalCost(targetList);
             int monsterSize = (int)monster.Species.Size;
 
             if (currentCost + monsterSize > PartyManager.MaxPartyCost)
             {
                 Debug.LogWarning("コストオーバー！");
-                return false; // 失敗
+                return false;
             }
 
             currentList.Remove(monster);
             targetList.Add(monster);
 
             RefreshUI();
-            return true; // 成功
+            return true;
         }
-
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace GameCore.InventorySystem
@@ -30,10 +31,15 @@ namespace GameCore.InventorySystem
     {
         // インベントリのサイズ（横10 × 縦4 = 40マス）
         private const int TotalSlots = 40;
-        private const int HotbarSlots = 10; // 1段目のホットバーの数
+
+        [Header("Starting Items")]
+        [Tooltip("ニューゲーム開始時に最初から持っているアイテム")]
+        [SerializeField] private List<ItemData> startingItems = new List<ItemData>();
 
         // 実際のアイテムデータ配列
         [SerializeField] private InventorySlot[] slots = new InventorySlot[TotalSlots];
+
+        // --- イベント（通知） ---
 
         // UIに「カバンの中身が変わったよ！」と知らせるイベント
         public event Action<int, InventorySlot> OnSlotUpdated;
@@ -41,21 +47,54 @@ namespace GameCore.InventorySystem
         // カバンが一杯の時に「アイテムを入れ替えて捨てるか？」を聞くためのイベント
         public event Action<ItemData, int> OnInventoryFull;
 
+        // アイテムを使った時の通知（PlayerStaminaなどで受け取る用）
+        public event Action<ItemData> OnItemUsed;
+
+        // アイテムを捨てた時の通知（フィールドに3Dモデルを生成する用）
+        public event Action<ItemData, int> OnItemDropped;
+
+
         private void Awake()
         {
-            // ゲーム開始時に40マスをすべて空の状態で初期化
+            // ゲーム起動時に40マスをすべて空の状態で初期化
+            // (slots配列自体はInspectorで見えるようにSerializeFieldにしているが、中身はnullの可能性があるのでnewする)
+            if (slots == null || slots.Length != TotalSlots)
+            {
+                slots = new InventorySlot[TotalSlots];
+            }
+
             for (int i = 0; i < TotalSlots; i++)
             {
-                slots[i] = new InventorySlot();
+                if (slots[i] == null)
+                {
+                    slots[i] = new InventorySlot();
+                }
+            }
+        }
+
+        private void Start()
+        {
+            // ゲーム開始時に初期アイテムを配る
+            // (ロード処理がある場合は、ロード後に上書きされる想定)
+            foreach (var item in startingItems)
+            {
+                if (item != null)
+                {
+                    // 1個ずつ追加する
+                    AddItem(item, 1);
+                }
             }
         }
 
         /// <summary>
         /// アイテムをカバンに追加し、入り切らなかった「余りの個数」を返す
         /// </summary>
+        /// <param name="itemToAdd">追加したいアイテム</param>
+        /// <param name="amount">追加する個数</param>
+        /// <returns>入り切らなかった数（0なら全て入った）</returns>
         public int AddItem(ItemData itemToAdd, int amount)
         {
-            // 1. 同じアイテムにスタック
+            // 1. まず、同じアイテムが既にカバンにあり、スタック（重ねる）できるか探す
             for (int i = 0; i < TotalSlots; i++)
             {
                 if (!slots[i].IsEmpty && slots[i].Item == itemToAdd)
@@ -63,17 +102,21 @@ namespace GameCore.InventorySystem
                     int spaceLeft = itemToAdd.MaxStackCount - slots[i].Amount;
                     if (spaceLeft > 0)
                     {
+                        // スタックできる分だけ足す
                         int addAmount = Mathf.Min(spaceLeft, amount);
                         slots[i].Amount += addAmount;
                         amount -= addAmount;
 
+                        // データが変わったのでUIへ通知
                         OnSlotUpdated?.Invoke(i, slots[i]);
-                        if (amount <= 0) return 0; // ★変更: 全部入ったら 0 を返す
+
+                        // すべて追加し終えたら終了
+                        if (amount <= 0) return 0;
                     }
                 }
             }
 
-            // 2. 空いているスロットに入れる
+            // 2. まだ追加しきれていない場合、空いているスロットを探す
             for (int i = 0; i < TotalSlots; i++)
             {
                 if (slots[i].IsEmpty)
@@ -83,23 +126,27 @@ namespace GameCore.InventorySystem
                     slots[i].Amount = addAmount;
                     amount -= addAmount;
 
+                    // データが変わったのでUIへ通知
                     OnSlotUpdated?.Invoke(i, slots[i]);
-                    if (amount <= 0) return 0; // ★変更: 全部入ったら 0 を返す
+
+                    // すべて追加し終えたら終了
+                    if (amount <= 0) return 0;
                 }
             }
 
-            // 3. 一杯の場合
+            // 3. ここまで来てamountが残っている場合は「カバンが一杯」
             if (amount > 0)
             {
                 Debug.LogWarning("インベントリが一杯です！");
+                // 「拾えなかったアイテム」と「個数」を通知（UI表示などに使う）
                 OnInventoryFull?.Invoke(itemToAdd, amount);
             }
 
-            return amount; // ★追加: カバンに入り切らなかった余りの数を返す
+            return amount; // 入り切らなかった余りの数を返す
         }
 
         /// <summary>
-        /// スロットを指定してアイテムを消費・捨てる
+        /// スロットを指定してアイテムを消費・削除する
         /// </summary>
         public void RemoveItemAt(int index, int amountToRemove)
         {
@@ -124,7 +171,6 @@ namespace GameCore.InventorySystem
             if (index < 0 || index >= TotalSlots) return null;
             return slots[index];
         }
-
 
         /// <summary>
         /// 2つのスロットのアイテムを入れ替える。
@@ -156,15 +202,15 @@ namespace GameCore.InventorySystem
             else
             {
                 // データを丸ごと入れ替える
-                InventorySlot temp = new InventorySlot();
-                temp.Item = fromSlot.Item;
-                temp.Amount = fromSlot.Amount;
+                // (参照の入れ替えではなく、値のコピーを行う)
+                ItemData tempItem = fromSlot.Item;
+                int tempAmount = fromSlot.Amount;
 
                 fromSlot.Item = toSlot.Item;
                 fromSlot.Amount = toSlot.Amount;
 
-                toSlot.Item = temp.Item;
-                toSlot.Amount = temp.Amount;
+                toSlot.Item = tempItem;
+                toSlot.Amount = tempAmount;
             }
 
             // データの変更をUIに通知する（ここで画面のアイコンが一瞬で切り替わる）
@@ -173,15 +219,6 @@ namespace GameCore.InventorySystem
 
             Debug.Log($"スロット {fromIndex} と {toIndex} を入れ替え/結合しました。");
         }
-
-
-        // --- InventoryManager.cs に追加 ---
-
-        // アイテムを使った時の通知（PlayerStaminaなどで受け取る用）
-        public event Action<ItemData> OnItemUsed;
-
-        // アイテムを捨てた時の通知（フィールドに3Dモデルを生成する用）
-        public event Action<ItemData, int> OnItemDropped;
 
         /// <summary>
         /// 指定したスロットのアイテムを1つ「使う」
@@ -225,8 +262,5 @@ namespace GameCore.InventorySystem
             slots[index].Clear();
             OnSlotUpdated?.Invoke(index, slots[index]);
         }
-
-
     }
-
 }
