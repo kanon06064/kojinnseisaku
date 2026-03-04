@@ -42,16 +42,25 @@ namespace GameCore.BattleSystem
         private void Start()
         {
             controller = GetComponent<CharacterController>();
-            startPosition = transform.position;
+            startPosition = transform.position; // ここで初期位置を確定
 
-            // プレイヤーをタグで探す
+            // --- ★追加: 既に倒されていたら即消滅 ---
+            if (EncounterManager.Instance != null)
+            {
+                if (EncounterManager.Instance.IsEnemyDefeated(startPosition))
+                {
+                    Destroy(gameObject);
+                    return; // 以降の処理はしない
+                }
+            }
+            // ------------------------------------
+
             GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
             if (playerObj != null)
             {
                 playerTransform = playerObj.transform;
             }
 
-            // 最初の目的地を決める
             SetNewWanderTarget();
         }
 
@@ -172,19 +181,18 @@ namespace GameCore.BattleSystem
 
         // --- ★重要: 接触判定 (Trigger) ---
         // 敵のTriggerコライダーに何かが入った時に呼ばれる
+        // OnTriggerEnterメソッドを修正
         private void OnTriggerEnter(Collider other)
         {
-            // ぶつかってきた相手がプレイヤーか？
             if (other.CompareTag("Player"))
             {
-                Debug.Log($"敵({this.name})がプレイヤーを捕まえました！ 戦闘開始！");
-
                 if (EncounterManager.Instance != null)
                 {
-                    // 戦闘開始処理を呼び出す
-                    EncounterManager.Instance.StartBattle(this.Species);
+                    // --- ★追加: 「ここでエンカウントしたよ」と登録する ---
+                    EncounterManager.Instance.RegisterDefeatedEnemy(startPosition);
+                    // ------------------------------------------------
 
-                    // エンカウントしたら、このシンボルは消す
+                    EncounterManager.Instance.StartBattle(this.Species);
                     Destroy(gameObject);
                 }
             }
