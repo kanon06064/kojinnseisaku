@@ -54,6 +54,8 @@ namespace GameCore.BattleSystem
 
         public static BattleManager Instance { get; private set; }
 
+        private bool isDetailsOpen = false;
+
         private void Awake()
         {
             Instance = this;
@@ -157,6 +159,29 @@ namespace GameCore.BattleSystem
         {
             if (state != BattleState.PlayerTurn) return;
             StartCoroutine(EndBattle(false));
+        }
+
+        public void OnCheckButton()
+        {
+            if (state != BattleState.PlayerTurn) return;
+
+            if (!isDetailsOpen)
+            {
+                isDetailsOpen = true;
+                battleHUD.OpenEnemyDetails(currentEnemySpecies, currentEnemyHP, currentEnemyMaxHP);
+                battleHUD.ToggleCommandButtons(false);
+            }
+        }
+
+        public void OnCloseDetailsButton()
+        {
+            isDetailsOpen = false;
+            battleHUD.CloseDetails();
+
+            if (state == BattleState.PlayerTurn)
+            {
+                battleHUD.ToggleCommandButtons(true);
+            }
         }
 
         // --- ★修正: 味方全員攻撃シーケンス ---

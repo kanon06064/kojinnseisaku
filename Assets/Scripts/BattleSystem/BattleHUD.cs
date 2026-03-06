@@ -59,11 +59,12 @@ namespace GameCore.BattleSystem
         // --- 詳細ウィンドウの操作 ---
         public void OpenEnemyDetails(MonsterSpecies enemyData, int currentHP, int maxHP)
         {
+            // ★追加: ログを出して、ここまで処理が来ているか確認する
+            Debug.Log($"詳細ウィンドウを開こうとしています。Panelは {(detailsPanel != null ? "あります" : "nullです")}");
+
             if (detailsPanel != null)
             {
                 detailsPanel.SetActive(true);
-
-                // HP情報の更新
                 UpdateEnemyHP(currentHP, maxHP);
             }
         }

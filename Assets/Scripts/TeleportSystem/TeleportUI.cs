@@ -1,4 +1,4 @@
-using System.Collections; // 追加
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -31,22 +31,32 @@ namespace GameCore.UISystem
 
             if (warpManager != null)
             {
-                // ★修正: 画面が開いている（アクティブな）時だけリストを更新する
-                // 閉じている時は無視しても、次に開いた時に OnEnable で更新されるので大丈夫です
-                warpManager.OnWarpUnlocked += () =>
-                {
-                    if (this.gameObject.activeInHierarchy)
-                    {
-                        StartCoroutine(TryRefreshList());
-                    }
-                };
+                // ★修正: ラムダ式ではなく、名前付きメソッドを登録する
+                warpManager.OnWarpUnlocked += OnWarpUnlockedHandler;
             }
         }
 
-        // マネージャーが見つかるまで少し待ってからリスト更新するコルーチン
+        private void OnDestroy()
+        {
+            // ★追加: UIが消える時に、イベントの登録を解除する（超重要）
+            if (warpManager != null)
+            {
+                warpManager.OnWarpUnlocked -= OnWarpUnlockedHandler;
+            }
+        }
+
+        // ★追加: イベントから呼ばれる専用のメソッド
+        private void OnWarpUnlockedHandler()
+        {
+            // 自分がまだ存在していて、かつアクティブな時だけ処理する
+            if (this != null && this.gameObject.activeInHierarchy)
+            {
+                StartCoroutine(TryRefreshList());
+            }
+        }
+
         private IEnumerator TryRefreshList()
         {
-            // 最大0.5秒くらい待つ（マネージャーの初期化待ち）
             int retryCount = 0;
             while (warpManager == null && retryCount < 10)
             {
@@ -57,7 +67,6 @@ namespace GameCore.UISystem
 
             if (warpManager == null)
             {
-                Debug.LogError("TeleportUI: WarpManagerが見つかりませんでした。BootSceneから開始していますか？");
                 yield break;
             }
 
@@ -68,18 +77,13 @@ namespace GameCore.UISystem
         {
             if (listContent == null || buttonPrefab == null) return;
 
-            // 1. 全削除
             foreach (Transform child in listContent)
             {
                 Destroy(child.gameObject);
             }
 
-            // 2. データ取得
             List<WarpData> unlockedPoints = warpManager.GetUnlockedPoints();
 
-            Debug.Log($"TeleportUI: 解放済みポイント数 = {unlockedPoints.Count}");
-
-            // 3. 生成
             foreach (var point in unlockedPoints)
             {
                 GameObject btnObj = Instantiate(buttonPrefab, listContent);
@@ -98,7 +102,6 @@ namespace GameCore.UISystem
 
         private void OnWarpButtonClicked(string id)
         {
-            Debug.Log($"ワープID: {id} が選択されました");
             warpManager.TeleportTo(id);
             if (uiManager != null) uiManager.OnClickCloseMenu();
         }

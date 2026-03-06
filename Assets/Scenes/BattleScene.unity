@@ -3599,7 +3599,7 @@ MonoBehaviour:
   - {fileID: 2075962055}
   - {fileID: 60200878}
   battleHUD: {fileID: 2144398778}
-  enemyNameText: {fileID: 0}
+  enemyNameText: {fileID: 2025969839}
   moveSpeed: 10
   attackDistance: 1.5
 --- !u!4 &2144398777
